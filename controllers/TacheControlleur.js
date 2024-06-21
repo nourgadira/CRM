@@ -1,260 +1,136 @@
 const mongoose = require('mongoose');
-const Tache = require('../models/Tache');
-const User = require('../models/User');
+const TaskModel = require('../models/Tache'); // Assurez-vous que le chemin est correct
+const UserModel = require('../models/User');
+const nodemailer = require('nodemailer');
+const Note = require('../models/note');
 
-const TacheControlleur = {
-  createTache: async (req, res) => {
-    try {
-      const { etat, description, dateDebut, dateFin, projetId } = req.body;
+const Projet = require('../models/Projet');
 
-      // Vérifiez que le projetId est fourni
-      if (!projetId) {
-        return res.status(400).json({ message: "Le projet est requis pour créer une tâche." });
-      }
-
-      // Créez la tâche avec le projet
-      const newTache = new Tache({
-        etat,
-        description,
-        dateDebut,
-        dateFin,
-        projet: projetId, // Utilisez le projetId pour associer la tâche au projet
-      });
-
-      // Enregistrez la nouvelle tâche
-      await newTache.save();
-      res.status(201).json({ message: "Tâche créée avec succès", tache: newTache });
-    } catch (error) {
-      console.error("Erreur lors de la création de la tâche :", error);
-      res.status(500).json({ message: "Erreur lors de la création de la tâche" });
+const AddTask = async (req, res) => {
+  try {
+    const exist = await TaskModel.findOne(req.body)
+    if (exist) {
+      return res.status(409).json({ message: 'tache already exist' });
     }
-  },
 
-  getProjetsByTacheId: async (req, res) => {
-    try {
-      const tacheId = req.params.tacheId;
-      const tache = await Tache.findById(tacheId).populate('projet').populate('idDeveloppeur');
-      if (!tache) {
-        return res.status(404).json({ message: 'Tâche non trouvée' });
-      }
-      const projet = tache.projet;
-      res.json(projet);
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: 'Erreur lors de la récupération du projet associé à la tâche', error: err.message });
+    const newTache = await TaskModel.create(req.body)
+    return res.status(201).json({
+      success: true,
+      message: " tache ajouté avec succès",
+      data: newTache,
+    });
+
+    // Configurer le transporter Nodemailer
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      secure: true,
+      auth: {
+        user: "isetkr9@gmail.com",
+        pass: "rmzwhxeoqiugbblz",
+      },
+    });
+
+    // Envoyer un e-mail de bienvenue à l'utilisateur avec les détails de la tâche
+    const info = await transporter.sendMail({
+      from: "isetkr9@gmail.com",
+      to: user.email,
+      subject: "Nouvelle tache assignée à toi",
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f2f2f2;">
+          <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 10px; padding: 20px;">
+            <p style="font-size: 20px; margin-bottom: 20px; color: #333333;">
+              Nouvelle tâche assignée à toi :
+            </p>
+            <ul style="list-style-type: none; padding-left: 0;">
+              <li><strong>Nom de la tâche:</strong> ${req.body.nom}</li>
+              <li><strong>Date de début:</strong> ${req.body.dateDebut}</li>
+              <li><strong>Date de fin:</strong> ${req.body.dateFin}</li>
+            </ul>
+            <p style="font-size: 12px; color: #fff; font-weight: bold;">
+              Merci et bienvenue !
+            </p>
+          </div>
+        </div>
+      `,
+    });
+
+    res.status(200).json({ message: "Tâche ajoutée avec succès" });
+  } catch (error) {
+    console.error("Erreur lors de l'ajout de la tâche :", error);
+    res.status(500).json({ error: "Erreur lors de l'ajout de la tâche" });
+  }
+}
+
+
+
+
+const FindAll = async (req, res) => {
+  try {
+    // Vérifier si l'utilisateur est un développeur (rôle = 1)
+    if (req.user.role === 1) {
+      const tasks = await TaskModel.find({ developpeur: req.user._id }).populate("projet").populate("developpeur");
+      return res.json(tasks);
+    } else {
+      // Si ce n'est pas un développeur, renvoyer toutes les tâches
+      const allTasks = await TaskModel.find().populate("projet").populate("developpeur");
+      return res.json(allTasks);
     }
-  },
-
-  getAllTachesForRoleTwo: async (req, res) => {
-    try {
-      const taches = await Tache.find(); // Récupérer toutes les tâches
-      res.status(200).json(taches);
-    } catch (error) {
-      res.status(500).json({ message: 'Erreur lors de la récupération des tâches', error: error.message });
-    }
-  },
-
-  getAllTaches: async (req, res) => {
-    try {
-      const etatTache = req.params.etatTache;
-      let taches;
-      if (etatTache) {
-        taches = await Tache.find({ etat: etatTache }).populate('idDeveloppeur');
-      } else {
-        taches = await Tache.find().populate('idDeveloppeur'); // Utilisation de populate pour obtenir les données du projet associé à chaque tâche
-      }
-
-      res.status(200).json(taches);
-    } catch (error) {
-      res.status(500).json({ message: 'Erreur lors de la récupération des tâches', error: error.message });
-    }
-  },
-
-  getTacheByUserId: async (req, res) => {
-    try {
-      const userId = req.params.userId;
-      const etatTache = req.params.etatTache;
-      let taches;
-
-      if (etatTache === 'all') {
-        taches = await Tache.find({ idDeveloppeur: userId });
-      } else {
-        taches = await Tache.find({ idDeveloppeur: userId, etat: etatTache });
-      }
-
-      res.json(taches);
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: 'Erreur lors de la récupération des tâches de l\'utilisateur', error: err.message });
-    }
-  },
-
-  getTacheById: async (req, res) => {
-    try {
-      const tache = await Tache.findById(req.params.id).populate('projet');
-      if (!tache) {
-        return res.status(404).json({ message: 'Tâche non trouvée' });
-      }
-      res.json(tache);
-    } catch (err) {
-      res.status(500).json({ message: err.message });
-    }
-  },
-
-  updateTache: async (req, res) => {
-    try {
-      const { etat, description, dateDebut, dateFin, idDeveloppeur, idProjet } = req.body;
-      const tache = await Tache.findById(req.params.id);
-      if (!tache) {
-        return res.status(404).json({ message: 'Tâche non trouvée' });
-      }
-      tache.etat = etat;
-      tache.description = description;
-      tache.dateDebut = dateDebut;
-      tache.dateFin = dateFin;
-      tache.idDeveloppeur = idDeveloppeur;
-      tache.idProjet = idProjet; // Ajout de l'ID du projet
-      const tacheMiseAJour = await tache.save();
-      res.json({ message: 'Tâche mise à jour avec succès', tache: tacheMiseAJour, idProjet: idProjet });
-    } catch (err) {
-      res.status(400).json({ message: err.message });
-    }
-  },
-
-  assignTaskToDeveloper: async (req, res) => {
-    try {
-      const taskId = req.params.taskId;
-      const developerId = req.params.developerId;
-      // Find the task by ID
-      // const existingTask = await Tache.findOne({_id: taskId, idDeveloppeur: { $in: [developerId] }});
-      const existingTask = await Tache.findById(taskId);
-
-      // Check if the task exists
-      if (!existingTask) {
-        return res.status(404).json({ error: 'Task not found' });
-      }
-
-      existingTask.idDeveloppeur.push(developerId);
-      const tache = await existingTask.save();// Tache.findByIdAndUpdate(taskId, {idDeveloppeur: developerId});
-
-      // Logique pour assigner la tâche au développeur
-      // Par exemple, mettez à jour la base de données avec l'ID du développeur assigné à la tâche
-
-      res.status(200).send("Tâche assignée avec succès au développeur.");
-    } catch (error) {
-      console.error("Erreur lors de l'assignation de la tâche au développeur:", error);
-      res.status(500).send("Erreur lors de l'assignation de la tâche au développeur.");
-    }
-  },
-
-  getDeveloppeurs: async (req, res) => {
-    try {
-      const developpeurs = await User.find({ role: 1 });
-      res.status(200).json({ developpeurs });
-    } catch (error) {
-      console.error('Erreur lors de la récupération des développeurs:', error);
-      res.status(500).json({ message: 'Erreur lors de la récupération des développeurs', error: error.message });
-    }
-  },
-
-  affecterTache: async (req, res) => {
-    try {
-      const { idTache, idDeveloppeur } = req.params;
-      const tache = await Tache.findById(idTache);
-      const developpeur = await User.findById(idDeveloppeur);
-      if (!tache || !developpeur) {
-        return res.status(404).json({ message: 'Tâche ou développeur non trouvé' });
-      }
-      tache.idDeveloppeur = idDeveloppeur;
-      const tacheMiseAJour = await tache.save();
-      const notification = new Notification({
-        type: 'assignTask',
-        userId: idDeveloppeur,
-        taskId: idTache,
-        message: `Vous avez une nouvelle tâche assignée : ${tache.description}`,
-        date: new Date(),
-        isRead: false,
-      });
-      await notification.save();
-
-      res.json({ message: 'Tâche affectée avec succès au développeur', tache: tacheMiseAJour });
-    } catch (error) {
-      console.error('Erreur lors de l\'affectation de la tâche au développeur:', error);
-      res.status(500).json({ message: 'Erreur lors de l\'affectation de la tâche au développeur', error: error.message });
-    }
-  },
-
-  deleteTache: async (req, res) => {
-    try {
-      const tache = await Tache.findByIdAndDelete(req.params.id);
-      if (!tache) {
-        return res.status(404).json({ message: 'Tâche non trouvée' });
-      }
-      res.json({ message: 'Tâche supprimée avec succès' });
-    } catch (error) {
-      res.status(500).json({ message: 'Erreur lors de la suppression de la tâche', error: error.message });
-    }
-  },
-
-  getTacheByNom: async (req, res) => {
-    try {
-      const nomTache = req.params.nomTache;
-      const taches = await Tache.find({ description: { $regex: nomTache, $options: 'i' } }).populate('projet').populate('idDeveloppeur');
-      res.status(200).json(taches);
-    } catch (error) {
-      res.status(500).json({ message: 'Erreur lors de la récupération des tâches par nom', error: error.message });
-    }
-  },
-
-  getTaskProgressByState: async (req, res) => {
-    try {
-      // Récupérer les tâches avec leurs états
-      const tasks = await Tache.find();
-
-      // Compter le nombre de tâches dans chaque état
-      const taskCountByState = tasks.reduce((acc, task) => {
-        acc[task.etat] = (acc[task.etat] || 0) + 1;
-        return acc;
-      }, {});
-
-      // Calculer les pourcentages des états
-      const totalTasks = tasks.length;
-      const taskProgressByState = Object.keys(taskCountByState).map((etat) => ({
-        etat,
-        pourcentage: (taskCountByState[etat] / totalTasks) * 100,
-      }));
-
-      res.status(200).json(taskProgressByState);
-    } catch (error) {
-      console.error('Erreur lors de la récupération de la progression des tâches par état:', error);
-      res.status(500).json({ message: 'Erreur serveur lors de la récupération de la progression des tâches par état' });
-    }
-  },
-
-  getDeveloppeursSeulement: async (req, res) => {
-    try {
-      const developpeurs = await User.find({ role: 1 }); // Récupère les utilisateurs avec un rôle de développeur (rôle 1)
-      res.status(200).json(developpeurs);
-    } catch (error) {
-      console.error('Erreur lors de la récupération des développeurs:', error);
-      res.status(500).json({ message: 'Erreur lors de la récupération des développeurs', error: error.message });
-    }
-  },
-
-  getTachesByEtat: async (req, res) => {
-    try {
-      const etatTache = req.params.etatTache;
-      let taches;
-      if (etatTache === 'en_cours' || etatTache === 'a_faire' || etatTache === 'terminee') {
-        taches = await Tache.find({ etat: etatTache }).populate('projet').populate('idDeveloppeur');
-      } else {
-        return res.status(400).json({ message: 'État de la tâche non valide' });
-      }
-      res.status(200).json(taches);
-    } catch (error) {
-      res.status(500).json({ message: 'Erreur lors de la récupération des tâches par état', error: error.message });
-    }
-  },
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
 };
 
-module.exports = TacheControlleur;
+const FindOne = async (req, res) => {
+  try {
+    const data = await TaskModel.findOne({ _id: req.params.id }).populate("projet")
+    return res.send(data)
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+const UpdateOne = async (req, res) => {
+
+  try {
+
+
+    const data = await TaskModel.findOneAndUpdate({ _id: req.params.id }, { $set: { ...req.body } }, { new: true }).populate("projet")
+    //console.log("azerty", req.body)
+    //console.log("id", req.params.id)
+    const tasksprojets = await TaskModel.findOne({ _id: req.params.id }, { new: true }).populate("projet")
+    //console.log("lalal", tasksprojets)
+    const tasks = await TaskModel.find({ projet: tasksprojets.projet._id });
+    console.log('tasks:', tasks)
+    // Vérifiez si toutes les tâches sont dans l'état "done"
+    const allTasksDone = tasks.every(task => task.etat === 'done');
+    console.log('all tasks done:', allTasksDone)
+
+    // Mettez à jour l'état du projet en conséquence
+    const updatedProjet = await Projet.findByIdAndUpdate(tasksprojets.projet._id, { etat: allTasksDone ? 'fini' : 'en cours' }, { new: true });
+
+    return res.send(data)
+
+
+  } catch (error) {
+    console.log(error)
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+const DeleteOne = async (req, res) => {
+  try {
+    const data = await TaskModel.deleteOne({ _id: req.params.id })
+    return res.send("success")
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+module.exports.TaskController = {
+  AddTask,
+  FindAll,
+  FindOne,
+  UpdateOne,
+  DeleteOne,
+
+}

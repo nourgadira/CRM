@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 
 const rendezVousSchema = new mongoose.Schema({
-    clientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Client' }, // Référence au client
 
     dateHeure: {
         type: Date,
@@ -11,20 +10,30 @@ const rendezVousSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    confirmation: {
-        type: Boolean,
-        default: false
+    langue: {
+        type: String,
+        required: true
     },
+    notes: {
+        type: String,
+    },
+    nomclient: {
+        type: String,
+        required: true
+    },
+    prenomclient: {
+        type: String,
+        required: true
+    },
+
     lieu: {
         type: String
     },
-    langue: {
-        type: String
-    },
-    annule: {
-        type: Boolean,
-        default: false
+    status: {
+        type: String,
     }
+
+
 });
 
 const RendezVous = mongoose.model('RendezVous', rendezVousSchema);

@@ -9,13 +9,22 @@ const tacheSchema = new Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Projet',
     required: true,
-  },  
+  },
+  developpeur: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+  },
+  nom: {
+    type: String,
+    required: true,
+  },
   etat: {
     type: String,
     required: true,
-    default: 'NOT_ASSIGNED', // 0
-    enum: ['NOT_ASSIGNED', 'TODO', 'INPROGRESS', 'DONE']
   },
+  chefProjet: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }, // Référence au client
+
   description: {
     type: String,
     maxlength: 200, // Définissez ici la longueur maximale de la description
@@ -24,21 +33,12 @@ const tacheSchema = new Schema({
   dateDebut: {
     type: Date,
     required: true,
+    get: (val) => val ? val.toISOString().split('T')[0] : ''
   },
   dateFin: {
     type: Date,
     required: true,
-  },
-  idDeveloppeur: [{
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: true,
-  }],
-  etatDeveloppeur: {
-    type: String,
-    required: true,
-    default: 'Non Validé', // 0
-    enum: ['Non Validé', 'Validé']
+    get: (val) => val ? val.toISOString().split('T')[0] : ''
   },
 });
 

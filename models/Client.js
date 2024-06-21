@@ -3,18 +3,22 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
 const clientSchema = new Schema({
-    // Définissez les propriétés du client ici
+
     nom: String,
+    prenom: String,
+
     numero: String,
     etat: String,
     notes: String,
     nomentreprise: String,
     pays: String,
-    cin: String,
+    prenom: String,
+    Matriculefiscale: String,
     adresse: String,
-   
-    projetsIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Projet' }],
-    rendezVous: [{ type: mongoose.Schema.Types.ObjectId, ref: 'RendezVous' }], // Référence aux rendez-vous associés à ce client
+    archive: {
+        type: Boolean,
+        default: false
+    }
 });
 
 const Client = mongoose.model('Client', clientSchema);

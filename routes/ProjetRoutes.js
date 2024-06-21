@@ -1,8 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const projetController = require('../controllers/ProjetController');
-const Projet = require('../models/Projet'); // Assurez-vous d'importer correctement le modèle Projet
 const multer = require('multer');
+const passport = require('passport');
+const Projet = require('../models/Projet');
+
 // Configuration de multer pour gérer les fichiers joints
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -15,66 +17,40 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 router.post('/uploads', projetController.upload);
+router.get('/payment-status', projetController.getProjetsByPaymentStatus);
+router.get('/projets/:paye', async (req, res) => {
+    const { paye } = req.params;
 
-// Route POST pour créer un nouveau projet avec un fichier joint
-router.post('/projet',  projetController.createProjet);
-
-// Route POST pour créer un nouveau projet sans fichier joint
-router.post('/projets', async (req, res) => {
     try {
-        const {
-            nom,
-            description,
-            dateDebut,
-            dateFin,
-            coutProjet,
-            dateRenouvellement,
-            dateHebergement,
-            coutMaintenance, // Assurez-vous que ce champ est inclus dans req.body
-            clientId,
-            tachesIds
-        } = req.body;
-        // Créer un nouveau projet avec les données fournies
-        const nouveauProjet = new Projet({
-            nom,
-            description,
-            dateDebut,
-            dateFin,
-            coutProjet,
-            dateRenouvellement,
-            dateHebergement,
-            coutMaintenance, // Inclure le champ coutMaintenance
-            clientId,
-            taches: tachesIds,
-        });
-
-        // Enregistrer le nouveau projet dans la base de données
-        const projetCree = await nouveauProjet.save();
-
-        res.status(201).json({ message: 'Projet créé avec succès', projet: projetCree });
+        const projets = await Projet.find({ paye });
+        res.status(200).json({ projets });
     } catch (error) {
-        console.error('Erreur lors de la création du projet :', error);
-        res.status(500).json({ message: 'Erreur lors de la création du projet', error: error.message });
+        console.error('Error fetching projects:', error);
+        res.status(500).json({ message: 'Internal server error' });
     }
 });
+// Route POST pour créer un nouveau projet avec un fichier joint
+router.post('/projets', passport.authenticate("jwt", { session: false }), projetController.createProjet);
+router.get('/projet/:id/check-finished', projetController.checkProjetFinished);
+
+
 
 // Route GET pour récupérer tous les projets
-router.get('/projets', projetController.getProjets);
+router.get('/projets', passport.authenticate("jwt", { session: false }), projetController.getProjets);
 
 // Route GET pour récupérer tous les projets de le client courant
-router.get('/projetsClient/:clientId', projetController.getProjetsByIdClient);
-
+router.get('/projects/:clientId', projetController.getProjectsByClientId);
 router.get('/projetsArchive', projetController.getProjetsArchive);
 
 // Route GET pour récupérer un projet par ID
-router.get('/projet/:id', (req, res) => {
+router.get('/projet/:id', passport.authenticate("jwt", { session: false }), (req, res) => {
     projetController.getProjetById(req, res);
 });
 
 // Route PUT pour mettre à jour un projet par ID
-router.put('/projet/:id', projetController.updateProjet);
+router.put('/projet/:id', passport.authenticate("jwt", { session: false }), projetController.updateProjet);
 
 // Route DELETE pour supprimer un projet par ID
-router.delete('/projet/:id/:status', projetController.deleteProjet);
+router.delete('/projet/:id/:status', passport.authenticate("jwt", { session: false }), projetController.deleteProjet);
 
 module.exports = router;
